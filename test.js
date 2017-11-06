@@ -43,11 +43,48 @@ describe('shared-git-hooks', () => {
     })
   })
 
+  describe('findProjectGitDir()', () => {
+    let cwd = process.cwd()
+    execSync('rm -rf test-git-root')
+
+    before(function () {
+      fs.mkdirSync('test-git-root')
+    })
+
+    after(function () {
+      process.chdir(cwd)
+      execSync('rm -rf test-git-root')
+    })
+
+    it('should return the git path of the project', () => {
+      process.chdir(cwd + '/test-git-root')
+      fs.mkdirSync('foo')
+      fs.mkdirSync('foo/bar')
+      execSync('git init')
+      process.chdir('foo/bar')
+      assert.equal(execSync('pwd'), __dirname + '/test-git-root/foo/bar\n')
+      assert.equal(ghooks.findProjectGitDir(), __dirname + '/test-git-root/.git')
+    })
+
+    it('should return the git path of submodule project', () => {
+      process.chdir(cwd + '/test-git-root')
+      fs.mkdirSync('inner-test-git-root')
+      fs.closeSync(fs.openSync('inner-test-git-root/tmp', 'w'))
+      execSync('cd inner-test-git-root && git init && git add tmp && git commit -m commit')
+      execSync('git submodule add ./inner-test-git-root/.git inner-test-submodule')
+      fs.mkdirSync('inner-test-submodule/foo')
+      fs.mkdirSync('inner-test-submodule/foo/bar')
+      process.chdir('inner-test-submodule/foo/bar')
+      assert.equal(execSync('pwd'), __dirname + '/test-git-root/inner-test-submodule/foo/bar\n')
+      assert.equal(ghooks.findProjectGitDir(), __dirname + '/test-git-root/.git/modules/inner-test-submodule')
+    })
+  })
+
   describe('ensureHooksDirExists()', () => {
     it('should create .git/hooks if not present', () => {
       mock({ '/project/.git': {} })
       assert.throws(() => fs.statSync('/project/.git/hooks'))
-      ghooks.ensureHooksDirExists('/project/')
+      ghooks.ensureHooksDirExists('/project/.git')
       assert.doesNotThrow(() => fs.statSync('/project/.git/hooks'))
     })
   })
@@ -99,7 +136,7 @@ describe('shared-git-hooks', () => {
         [__dirname + '/hook.sh']: 'foo',
         '/project/.git/hooks': {}
       })
-      assert.ok(ghooks.installHook('test', '/project'))
+      assert.ok(ghooks.installHook('test', '/project/.git'))
       assert.doesNotThrow(() => fs.lstatSync('/project/.git/hooks/test'))
       assert.equal(fs.readlinkSync('/project/.git/hooks/test'), ghooks.HOOK_SCRIPT_PATH)
     })
@@ -111,7 +148,7 @@ describe('shared-git-hooks', () => {
           path: __dirname + '/hook.sh'
         })
       })
-      assert.notOk(ghooks.installHook('test', '/project'))
+      assert.notOk(ghooks.installHook('test', '/project/.git'))
       assert.doesNotThrow(() => fs.lstatSync('/project/.git/hooks/test'))
       assert.equal(fs.readlinkSync('/project/.git/hooks/test'), ghooks.HOOK_SCRIPT_PATH)
     })
@@ -121,7 +158,7 @@ describe('shared-git-hooks', () => {
         [__dirname + '/hook.sh']: 'foo',
         '/project/.git/hooks/test': 'foo'
       })
-      assert.ok(ghooks.installHook('test', '/project'))
+      assert.ok(ghooks.installHook('test', '/project/.git'))
       assert.doesNotThrow(() => fs.lstatSync('/project/.git/hooks/test'))
       assert.equal(fs.readlinkSync('/project/.git/hooks/test'), ghooks.HOOK_SCRIPT_PATH)
       assert.equal(fs.readFileSync('/project/.git/hooks/test.bak'), 'foo')
@@ -135,7 +172,7 @@ describe('shared-git-hooks', () => {
 
       ghooks.installHooks(['foo'])
       assert.ok(ghooks.ensureHooksDirExists.calledOnce, 'ensureHooksDirExists')
-      assert.ok(ghooks.installHook.calledWith('foo', __dirname))
+      assert.ok(ghooks.installHook.calledWith('foo', '.git'))
     })
   })
 })

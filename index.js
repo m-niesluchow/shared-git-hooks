@@ -12,12 +12,17 @@ const resolve = require('path').resolve
 const HOOK_SCRIPT_PATH = resolve(__dirname, 'hook.sh')
 
 function findProjectRoot () {
-  let stdout = execSync('git rev-parse --git-dir')
-  return resolve(stdout.toString().replace('\n', ''), '..')
+  let stdout = execSync('git rev-parse --show-toplevel')
+  return stdout.toString().replace('\n', '')
 }
 
-function ensureHooksDirExists (projectPath) {
-  let hooksDir = resolve(projectPath, '.git/hooks')
+function findProjectGitDir () {
+  let stdout = execSync('git rev-parse --git-dir')
+  return stdout.toString().replace('\n', '')
+}
+
+function ensureHooksDirExists (gitDirPath) {
+  let hooksDir = resolve(gitDirPath, 'hooks')
   !doesPathExist(hooksDir) && fs.mkdirSync(hooksDir)
 }
 
@@ -28,8 +33,8 @@ function saveHookRunner () {
   fs.chmodSync(resolve(__dirname, 'hook.sh'), '744')
 }
 
-function installHook (hookName, projectPath) {
-  var path = resolve(projectPath, '.git/hooks', hookName)
+function installHook (hookName, gitDirPath) {
+  var path = resolve(gitDirPath, 'hooks', hookName)
 
   if (isAlreadyInstalled(path)) {
     exports.log(` [ = ] ${hookName}`)
@@ -67,15 +72,16 @@ function backup (path) {
 }
 
 function installHooks (hooks) {
-  let projectPath = exports.findProjectRoot()
-  exports.ensureHooksDirExists(projectPath)
+  let gitDirPath = exports.findProjectGitDir()
+  exports.ensureHooksDirExists(gitDirPath)
   exports.saveHookRunner()
-  hooks.forEach((hookName) => exports.installHook(hookName, projectPath))
+  hooks.forEach((hookName) => exports.installHook(hookName, gitDirPath))
 }
 
 exports.backup = backup
 exports.ensureHooksDirExists = ensureHooksDirExists
 exports.findProjectRoot = findProjectRoot
+exports.findProjectGitDir = findProjectGitDir
 exports.installHook = installHook
 exports.installHooks = installHooks
 exports.isAlreadyInstalled = isAlreadyInstalled
